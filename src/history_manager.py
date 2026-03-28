@@ -1,12 +1,25 @@
 import json
 import os
+import platform
 from datetime import datetime
+
+
+def _get_data_dir() -> str:
+    system = platform.system()
+    if system == "Darwin":
+        return os.path.expanduser("~/Library/Application Support/Colt")
+    elif system == "Windows":
+        return os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "Colt")
+    else:
+        return os.path.expanduser("~/.config/Colt")
 
 
 class HistoryManager:
 
-    def __init__(self, filepath: str):
-        self.filepath = filepath
+    def __init__(self):
+        data_dir = _get_data_dir()
+        os.makedirs(data_dir, exist_ok=True)
+        self.filepath = os.path.join(data_dir, "history.json")
         self.history = []
         self._load()
 

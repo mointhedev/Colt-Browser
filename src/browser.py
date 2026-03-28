@@ -6,7 +6,6 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QShortcut, QKeySequence
 from tab import BrowserTab
 from history_manager import HistoryManager
-import os
 
 
 class BrowserWindow(QMainWindow):
@@ -15,7 +14,7 @@ class BrowserWindow(QMainWindow):
         self.setWindowTitle("Colt")
         self.resize(1280, 800)
         self.plus_tab_index = None  # we'll use this to track the "+" tab
-        self.history_manager = HistoryManager(os.path.join(os.path.dirname(__file__), "history.json"))
+        self.history_manager = HistoryManager()
 
         self._setup_toolbar()
         self._setup_tabs()
