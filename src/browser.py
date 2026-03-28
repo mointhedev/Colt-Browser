@@ -4,10 +4,12 @@ from PySide6.QtWidgets import (
     QListWidget, QVBoxLayout
 )
 from PySide6.QtGui import QShortcut, QKeySequence
+from PySide6.QtWebEngineCore import QWebEngineProfile
+
 from tab import BrowserTab
 from history_manager import HistoryManager
 from bookmark_manager import BookmarkManager
-
+from download_manager import DownloadManager
 
 class BrowserWindow(QMainWindow):
     def __init__(self):
@@ -17,6 +19,7 @@ class BrowserWindow(QMainWindow):
         self.plus_tab_index = None  # we'll use this to track the "+" tab
         self.history_manager = HistoryManager()
         self.bookmark_manager = BookmarkManager()
+        self.download_manager = DownloadManager()
 
         self._setup_toolbar()
         self._setup_tabs()
@@ -28,6 +31,9 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._show_history)
         QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self._on_bookmark_clicked)
         QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(self._show_bookmarks)
+
+        self.download_manager.connect_profile(QWebEngineProfile.defaultProfile())
+        QShortcut(QKeySequence("Ctrl+J"), self).activated.connect(self._show_downloads)
 
     def _setup_toolbar(self):
         toolbar = QToolBar()
@@ -119,6 +125,9 @@ class BrowserWindow(QMainWindow):
             return
         if current_text == "Bookmarks":
             self._show_bookmarks()
+            return
+        if current_text == "Downloads":
+            self._show_downloads()
             return
         tab = self._current_tab()
         if tab:
@@ -221,6 +230,37 @@ class BrowserWindow(QMainWindow):
 
         insert_at = existing_index if existing_index is not None else self.plus_tab_index
         self.tabs.insertTab(insert_at, widget, "Bookmarks")
+        self.plus_tab_index = self.tabs.count() - 1
+        self.tabs.setCurrentIndex(insert_at)
+
+    def _show_downloads(self):
+        existing_index = None
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Downloads":
+                existing_index = i
+                self.tabs.removeTab(i)
+                self.plus_tab_index = self.tabs.count() - 1
+                break
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        list_widget = QListWidget()
+
+        for entry in self.download_manager.get_all():
+            download = entry["download"]
+            if download.isFinished():
+                status = "✓ Done"
+            else:
+                received = download.receivedBytes()
+                total = download.totalBytes()
+                percent = int((received / total) * 100) if total > 0 else 0
+                status = f"{percent}%"
+            list_widget.addItem(f"{status}  —  {entry['filename']}  —  {entry['path']}")
+
+        layout.addWidget(list_widget)
+
+        insert_at = existing_index if existing_index is not None else self.plus_tab_index
+        self.tabs.insertTab(insert_at, widget, "Downloads")
         self.plus_tab_index = self.tabs.count() - 1
         self.tabs.setCurrentIndex(insert_at)
 
