@@ -1,9 +1,12 @@
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QLineEdit,
-    QPushButton, QTabWidget, QWidget, QTabBar
+    QPushButton, QTabWidget, QWidget, QTabBar,
+    QListWidget, QVBoxLayout
 )
-from PySide6.QtGui import QIcon, QShortcut, QKeySequence
+from PySide6.QtGui import QShortcut, QKeySequence
 from tab import BrowserTab
+from history_manager import HistoryManager
+import os
 
 
 class BrowserWindow(QMainWindow):
@@ -12,6 +15,7 @@ class BrowserWindow(QMainWindow):
         self.setWindowTitle("Colt")
         self.resize(1280, 800)
         self.plus_tab_index = None  # we'll use this to track the "+" tab
+        self.history_manager = HistoryManager(os.path.join(os.path.dirname(__file__), "history.json"))
 
         self._setup_toolbar()
         self._setup_tabs()
@@ -20,6 +24,7 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+T"), self).activated.connect(lambda: self.add_tab("https://google.com"))
         QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(self._close_current_tab)
         QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._on_reload)
+        QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._show_history)
 
     def _setup_toolbar(self):
         toolbar = QToolBar()
@@ -116,8 +121,16 @@ class BrowserWindow(QMainWindow):
         if index == self.plus_tab_index:
             return
         if self.tabs.count() > 2:
+            self.tabs.currentChanged.disconnect(self._on_tab_switched)
             self.tabs.removeTab(index)
             self.plus_tab_index = self.tabs.count() - 1
+            # make sure we never land on the + tab
+            new_index = min(index, self.plus_tab_index - 1)
+            self.tabs.setCurrentIndex(new_index)
+            self.tabs.currentChanged.connect(self._on_tab_switched)
+            tab = self._current_tab()
+            if tab:
+                self.address_bar.setText(tab.url)
 
     def _on_tab_switched(self, index: int):
         if index == self.plus_tab_index:
@@ -132,6 +145,27 @@ class BrowserWindow(QMainWindow):
         # Only update address bar if this signal came from the currently active tab
         if tab == self._current_tab():
             self.address_bar.setText(url)
+        title = tab.title or url
+        self.history_manager.add_entry(url, title)
+
+    def _show_history(self):
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "History":
+                self.tabs.setCurrentIndex(i)
+                return
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        list_widget = QListWidget()
+        for entry in self.history_manager.get_all():
+            list_widget.addItem(f"{entry['time']}  —  {entry['title']}  —  {entry['url']}")
+        list_widget.itemDoubleClicked.connect(lambda item: self._current_tab().load(item.text().split("  —  ")[-1]))
+        layout.addWidget(list_widget)
+
+        # insert before + tab and update plus_tab_index
+        self.tabs.insertTab(self.plus_tab_index, widget, "History")
+        self.plus_tab_index = self.tabs.count() - 1
+        self.tabs.setCurrentIndex(self.plus_tab_index - 1)
 
     def _on_title_changed(self, title: str, tab: BrowserTab):
         # Find which index this tab is at, update that specific tab's label
