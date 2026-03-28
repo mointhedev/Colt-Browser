@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtGui import QShortcut, QKeySequence
 from tab import BrowserTab
 from history_manager import HistoryManager
+from bookmark_manager import BookmarkManager
 
 
 class BrowserWindow(QMainWindow):
@@ -15,6 +16,7 @@ class BrowserWindow(QMainWindow):
         self.resize(1280, 800)
         self.plus_tab_index = None  # we'll use this to track the "+" tab
         self.history_manager = HistoryManager()
+        self.bookmark_manager = BookmarkManager()
 
         self._setup_toolbar()
         self._setup_tabs()
@@ -24,6 +26,8 @@ class BrowserWindow(QMainWindow):
         QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(self._close_current_tab)
         QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._on_reload)
         QShortcut(QKeySequence("Ctrl+Y"), self).activated.connect(self._show_history)
+        QShortcut(QKeySequence("Ctrl+D"), self).activated.connect(self._on_bookmark_clicked)
+        QShortcut(QKeySequence("Ctrl+B"), self).activated.connect(self._show_bookmarks)
 
     def _setup_toolbar(self):
         toolbar = QToolBar()
@@ -33,6 +37,7 @@ class BrowserWindow(QMainWindow):
         self.btn_back = QPushButton("←")
         self.btn_forward = QPushButton("→")
         self.btn_reload = QPushButton("↺")
+        self.btn_bookmark = QPushButton("☆")
 
         self.address_bar = QLineEdit()
         self.address_bar.setPlaceholderText("Enter URL...")
@@ -42,10 +47,12 @@ class BrowserWindow(QMainWindow):
         toolbar.addWidget(self.btn_forward)
         toolbar.addWidget(self.btn_reload)
         toolbar.addWidget(self.address_bar)
+        toolbar.addWidget(self.btn_bookmark)
 
         self.btn_back.clicked.connect(self._on_back)
         self.btn_forward.clicked.connect(self._on_forward)
         self.btn_reload.clicked.connect(self._on_reload)
+        self.btn_bookmark.clicked.connect(self._on_bookmark_clicked)
 
     def _setup_tabs(self):
         self.tabs = QTabWidget()
@@ -106,6 +113,13 @@ class BrowserWindow(QMainWindow):
             tab.forward()
 
     def _on_reload(self):
+        current_text = self.tabs.tabText(self.tabs.currentIndex())
+        if current_text == "History":
+            self._show_history()
+            return
+        if current_text == "Bookmarks":
+            self._show_bookmarks()
+            return
         tab = self._current_tab()
         if tab:
             tab.reload()
@@ -139,32 +153,76 @@ class BrowserWindow(QMainWindow):
         tab = self._current_tab()
         if tab:
             self.address_bar.setText(tab.url)
+            self._update_bookmark_button(tab.url)
 
     def _on_url_changed(self, url: str, tab: BrowserTab):
         # Only update address bar if this signal came from the currently active tab
         if tab == self._current_tab():
             self.address_bar.setText(url)
+            self._update_bookmark_button(url)
         title = tab.title or url
         self.history_manager.add_entry(url, title)
 
     def _show_history(self):
+        existing_index = None
         for i in range(self.tabs.count()):
             if self.tabs.tabText(i) == "History":
-                self.tabs.setCurrentIndex(i)
-                return
+                existing_index = i
+                self.tabs.removeTab(i)
+                self.plus_tab_index = self.tabs.count() - 1
+                break
 
         widget = QWidget()
         layout = QVBoxLayout(widget)
         list_widget = QListWidget()
         for entry in self.history_manager.get_all():
             list_widget.addItem(f"{entry['time']}  —  {entry['title']}  —  {entry['url']}")
-        list_widget.itemDoubleClicked.connect(lambda item: self._current_tab().load(item.text().split("  —  ")[-1]))
+        list_widget.itemDoubleClicked.connect(lambda item: self.add_tab(item.text().split("  —  ")[-1]))
         layout.addWidget(list_widget)
 
-        # insert before + tab and update plus_tab_index
-        self.tabs.insertTab(self.plus_tab_index, widget, "History")
+        insert_at = existing_index if existing_index is not None else self.plus_tab_index
+        self.tabs.insertTab(insert_at, widget, "History")
         self.plus_tab_index = self.tabs.count() - 1
-        self.tabs.setCurrentIndex(self.plus_tab_index - 1)
+        self.tabs.setCurrentIndex(insert_at)
+
+    def _on_bookmark_clicked(self):
+        tab = self._current_tab()
+        if not tab:
+            return
+        url = tab.url
+        if self.bookmark_manager.is_bookmarked(url):
+            self.bookmark_manager.remove_bookmark(url)
+        else:
+            self.bookmark_manager.add_bookmark(url, tab.title or url)
+        self._update_bookmark_button(url)
+
+    def _update_bookmark_button(self, url: str):
+        if self.bookmark_manager.is_bookmarked(url):
+            self.btn_bookmark.setText("★")
+        else:
+            self.btn_bookmark.setText("☆")
+
+    def _show_bookmarks(self):
+        existing_index = None
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) == "Bookmarks":
+                existing_index = i
+                self.tabs.removeTab(i)
+                self.plus_tab_index = self.tabs.count() - 1
+                break
+
+        widget = QWidget()
+        layout = QVBoxLayout(widget)
+        list_widget = QListWidget()
+        for entry in self.bookmark_manager.get_all():
+            list_widget.addItem(f"{entry['name']}  —  {entry['url']}")
+        list_widget.itemDoubleClicked.connect(lambda item: self.add_tab(item.text().split("  —  ")[-1]))
+        layout.addWidget(list_widget)
+
+        insert_at = existing_index if existing_index is not None else self.plus_tab_index
+        self.tabs.insertTab(insert_at, widget, "Bookmarks")
+        self.plus_tab_index = self.tabs.count() - 1
+        self.tabs.setCurrentIndex(insert_at)
 
     def _on_title_changed(self, title: str, tab: BrowserTab):
         # Find which index this tab is at, update that specific tab's label
