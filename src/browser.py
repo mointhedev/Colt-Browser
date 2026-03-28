@@ -2,7 +2,7 @@ from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QLineEdit,
     QPushButton, QTabWidget, QWidget, QTabBar
 )
-
+from PySide6.QtGui import QIcon, QShortcut, QKeySequence
 from tab import BrowserTab
 
 
@@ -16,6 +16,10 @@ class BrowserWindow(QMainWindow):
         self._setup_toolbar()
         self._setup_tabs()
         self.add_tab("https://google.com")
+
+        QShortcut(QKeySequence("Ctrl+T"), self).activated.connect(lambda: self.add_tab("https://google.com"))
+        QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(self._close_current_tab)
+        QShortcut(QKeySequence("Ctrl+R"), self).activated.connect(self._on_reload)
 
     def _setup_toolbar(self):
         toolbar = QToolBar()
@@ -55,6 +59,7 @@ class BrowserWindow(QMainWindow):
         # so we always know which tab fired the signal
         tab.url_changed.connect(lambda u, t=tab: self._on_url_changed(u, t))
         tab.title_changed.connect(lambda title, t=tab: self._on_title_changed(title, t))
+        tab.favicon_changed.connect(lambda icon, t=tab: self._on_favicon_changed(icon, t))
 
         self.tabs.addTab(tab.web_view, "New Tab")
         tab.web_view.setProperty("tab_object", tab)
@@ -101,6 +106,12 @@ class BrowserWindow(QMainWindow):
         if tab:
             tab.reload()
 
+    def _close_current_tab(self):
+        index = self.tabs.currentIndex()
+        if index != self.plus_tab_index and self.tabs.count() > 2:
+            self.tabs.removeTab(index)
+            self.plus_tab_index = self.tabs.count() - 1
+
     def _on_tab_close(self, index: int):
         if index == self.plus_tab_index:
             return
@@ -127,3 +138,8 @@ class BrowserWindow(QMainWindow):
         index = self.tabs.indexOf(tab.web_view)
         if index >= 0 and title:
             self.tabs.setTabText(index, title[:30])
+
+    def _on_favicon_changed(self, icon, tab: BrowserTab):
+        index = self.tabs.indexOf(tab.web_view)
+        if index >= 0:
+            self.tabs.setTabIcon(index, icon)
