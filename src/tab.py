@@ -1,12 +1,11 @@
 from PySide6.QtCore import QObject, Signal, QUrl
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineProfile
 
 
 class BrowserTab(QObject):
     # Custom signals — browser.py will listen to these
-    url_changed   = Signal(str)    # fires when page URL changes
-    title_changed = Signal(str)    # fires when page title changes
+    url_changed = Signal(str)  # fires when page URL changes
+    title_changed = Signal(str)  # fires when page title changes
     favicon_changed = Signal(object)  # fires when page icon changes
 
     def __init__(self, parent=None):
@@ -41,7 +40,9 @@ class BrowserTab(QObject):
 
     # Convenience wrappers so browser.py can call these directly
     def back(self):    self.web_view.back()
+
     def forward(self): self.web_view.forward()
+
     def reload(self):  self.web_view.reload()
 
     @property

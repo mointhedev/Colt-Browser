@@ -1,9 +1,7 @@
 from PySide6.QtWidgets import (
     QMainWindow, QToolBar, QLineEdit,
-    QPushButton, QTabWidget, QWidget, QApplication
+    QPushButton, QTabWidget, QWidget, QTabBar
 )
-from PySide6.QtCore import QUrl
-from PySide6.QtGui import QIcon
 
 from tab import BrowserTab
 
@@ -13,6 +11,7 @@ class BrowserWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle("Colt")
         self.resize(1280, 800)
+        self.plus_tab_index = None  # we'll use this to track the "+" tab
 
         self._setup_toolbar()
         self._setup_tabs()
@@ -42,10 +41,11 @@ class BrowserWindow(QMainWindow):
 
     def _setup_tabs(self):
         self.tabs = QTabWidget()
-        self.tabs.setTabsClosable(True)       # shows X button on each tab
-        self.tabs.setDocumentMode(True)        # cleaner look on macOS
+        self.tabs.setTabsClosable(True)  # shows X button on each tab
+        self.tabs.setDocumentMode(True)  # cleaner look on macOS
         self.tabs.tabCloseRequested.connect(self._on_tab_close)
         self.tabs.currentChanged.connect(self._on_tab_switched)
+
         self.setCentralWidget(self.tabs)
 
     def add_tab(self, url: str):
@@ -59,6 +59,18 @@ class BrowserWindow(QMainWindow):
         self.tabs.addTab(tab.web_view, "New Tab")
         tab.web_view.setProperty("tab_object", tab)
         self.tabs.setCurrentWidget(tab.web_view)
+
+        self.tabs.currentChanged.disconnect(self._on_tab_switched)
+
+        if self.plus_tab_index is not None:
+            self.tabs.removeTab(self.plus_tab_index)
+        self.tabs.addTab(QWidget(), "+")
+        self.plus_tab_index = self.tabs.count() - 1
+        self.tabs.tabBar().setTabButton(self.plus_tab_index, QTabBar.ButtonPosition.LeftSide, None)
+
+        self.tabs.currentChanged.connect(self._on_tab_switched)
+        if not url:
+            url = "https://google.com"
         tab.load(url)
 
     def _current_tab(self) -> BrowserTab | None:
@@ -90,11 +102,17 @@ class BrowserWindow(QMainWindow):
             tab.reload()
 
     def _on_tab_close(self, index: int):
-        if self.tabs.count() > 1:  # don't close the last tab
+        if index == self.plus_tab_index:
+            return
+        if self.tabs.count() > 2:
             self.tabs.removeTab(index)
+            self.plus_tab_index = self.tabs.count() - 1
 
     def _on_tab_switched(self, index: int):
-        """When user clicks a different tab, update address bar to that tab's URL."""
+        if index == self.plus_tab_index:
+            self.add_tab("https://google.com")
+            return
+
         tab = self._current_tab()
         if tab:
             self.address_bar.setText(tab.url)
