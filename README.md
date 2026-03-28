@@ -1,4 +1,4 @@
-# Colt Browser 🌿
+# Colt Browser 
 
 A minimal, lightweight desktop browser built from scratch in Python using PySide6 and Qt's Chromium-based web engine.
 
